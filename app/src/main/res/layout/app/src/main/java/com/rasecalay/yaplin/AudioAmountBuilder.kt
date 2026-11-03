@@ -1,0 +1,62 @@
+package com.rasecalay.yaplin
+
+import android.content.Context
+
+object AudioAmountBuilder {
+
+    fun buildAudioPlaylist(context: Context, amountDouble: Double, isYape: Boolean): List<Int> {
+        val playlist = mutableListOf<Int>()
+
+        val introName = if (isYape) "audio_yape" else "audio_plin"
+        getRawId(context, introName)?.let { playlist.add(it) }
+
+        val entero = amountDouble.toInt()
+        val centavos = Math.round((amountDouble - entero) * 100).toInt()
+
+        if (entero > 0) {
+            playlist.addAll(resolveNumberToAudios(context, entero))
+            getRawId(context, "audio_soles")?.let { playlist.add(it) }
+        }
+
+        if (centavos > 0) {
+            getRawId(context, "audio_con")?.let { playlist.add(it) }
+            playlist.addAll(resolveNumberToAudios(context, centavos))
+            getRawId(context, "audio_centimos")?.let { playlist.add(it) }
+        }
+
+        return playlist
+    }
+
+    private fun resolveNumberToAudios(context: Context, number: Int): List<Int> {
+        val list = mutableListOf<Int>()
+
+        if (number in 1..29) {
+            getRawId(context, "audio_$number")?.let { list.add(it) }
+            return list
+        }
+
+        if (number in 30..99) {
+            val decena = (number / 10) * 10
+            val unidad = number % 10
+
+            getRawId(context, "audio_$decena")?.let { list.add(it) }
+            if (unidad > 0) {
+                getRawId(context, "audio_y")?.let { list.add(it) }
+                getRawId(context, "audio_$unidad")?.let { list.add(it) }
+            }
+            return list
+        }
+
+        if (number == 100) {
+            getRawId(context, "audio_100")?.let { list.add(it) }
+            return list
+        }
+
+        return list
+    }
+
+    private fun getRawId(context: Context, resourceName: String): Int? {
+        val resId = context.resources.getIdentifier(resourceName, "raw", context.packageName)
+        return if (resId != 0) resId else null
+    }
+}
