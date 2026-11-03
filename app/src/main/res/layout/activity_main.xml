@@ -158,7 +158,7 @@
                     android:layout_marginTop="2dp" />
             </LinearLayout>
 
-            <!-- 4. TARJETA COMPACTA: TOTAL DE HOY -->
+            <!-- 4. Tarjeta: Total de Hoy -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
