@@ -74,7 +74,7 @@ object LicenseManager {
     fun openWhatsAppActivation(context: Context, deviceId: String) {
         try {
             val message = "Hola, deseo activar Yaplin en mi celular. Mi ID es: $deviceId"
-            val url = "https://api.whatsapp.com/send?phone=51928625004&text=" + Uri.encode(message)
+            val url = "https://api.whatsapp.com/send?phone=51939525004&text=" + Uri.encode(message)
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
