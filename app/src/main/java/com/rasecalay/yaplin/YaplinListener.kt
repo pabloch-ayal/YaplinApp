@@ -1,5 +1,7 @@
 package com.rasecalay.yaplin
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
@@ -11,6 +13,7 @@ import android.os.VibratorManager
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -24,10 +27,47 @@ class YaplinListener : NotificationListenerService() {
 
     companion object {
         private const val TAG = "YaplinListener"
+        private const val CHANNEL_ID = "yaplin_persistent_channel"
+        private const val NOTIFICATION_ID = 8801
         private const val PKG_YAPE = "com.bcp.innovacxion.yapeapp"
         private const val PKG_PLIN_BBVA = "com.bbva.nxt_peru"
         private const val PKG_PLIN_INTERBANK = "pe.com.interbank.mobilebanking"
         private const val PKG_PLIN_SCOTIA = "com.scotiabank.peru.mobile"
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        startPersistentForeground()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startPersistentForeground()
+        return START_STICKY
+    }
+
+    private fun startPersistentForeground() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Monitor de Cobros Activo",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Mantiene activo el lector automático de pagos Yaplin"
+                setShowBadge(false)
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Yaplin en ejecución")
+            .setContentText("Escuchando notificaciones de Yape y Plin en tiempo real")
+            .setSmallIcon(R.drawable.ic_launcher)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        startForeground(NOTIFICATION_ID, notification)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
