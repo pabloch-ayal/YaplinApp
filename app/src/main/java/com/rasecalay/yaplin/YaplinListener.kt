@@ -34,8 +34,9 @@ class YaplinListener : NotificationListenerService() {
         super.onNotificationPosted(sbn)
         if (sbn == null) return
 
-        val pkg = sbn.packageName ?: return
+        if (!LicenseManager.isActivated(this)) return
 
+        val pkg = sbn.packageName ?: return
         val isYape = pkg == PKG_YAPE
         val isPlin = pkg == PKG_PLIN_BBVA || pkg == PKG_PLIN_INTERBANK || pkg == PKG_PLIN_SCOTIA
 
@@ -54,17 +55,27 @@ class YaplinListener : NotificationListenerService() {
             val amountValue = rawAmount.toDoubleOrNull() ?: 0.0
 
             if (amountValue > 0.0) {
-                vibrateAlert()
-                playAmountSequence(amountValue, isYape)
+                val senderName = if (title.isNotBlank() && !title.contains("Yape", ignoreCase = true) && !title.contains("Plin", ignoreCase = true)) {
+                    title.trim()
+                } else {
+                    "Cliente"
+                }
 
                 val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
                 val currentTime = timeFormat.format(Date())
+                val serviceName = if (isYape) "Yape" else "Plin"
+
+                PaymentHistoryManager.addPayment(this, senderName, amountValue, serviceName, currentTime)
+
+                vibrateAlert()
+                playAmountSequence(amountValue, isYape)
 
                 val broadcastIntent = Intent("com.rasecalay.yaplin.NUEVO_PAGO").apply {
                     setPackage(packageName)
-                    putExtra("service", if (isYape) "Yape" else "Plin")
+                    putExtra("service", serviceName)
                     putExtra("amount", String.format(Locale.US, "%.2f", amountValue))
                     putExtra("time", currentTime)
+                    putExtra("sender", senderName)
                 }
                 sendBroadcast(broadcastIntent)
             }
@@ -119,9 +130,7 @@ class YaplinListener : NotificationListenerService() {
         try {
             mediaPlayer?.stop()
             mediaPlayer?.release()
-        } catch (e: Exception) {
-            // Ignorar
-        }
+        } catch (_: Exception) {}
         mediaPlayer = null
     }
 
