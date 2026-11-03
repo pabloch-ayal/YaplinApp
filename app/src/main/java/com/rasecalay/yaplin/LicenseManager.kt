@@ -80,7 +80,7 @@ object LicenseManager {
             }
             context.startActivity(intent)
         } catch (_: Exception) {
-            val fallback = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/51928625004"))
+            val fallback = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/51939525004"))
             context.startActivity(fallback)
         }
     }
