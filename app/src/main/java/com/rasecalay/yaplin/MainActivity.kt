@@ -1,166 +1,187 @@
-package com.rasecalay.yaplin
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
 
-import android.content.BroadcastReceiver
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.media.AudioAttributes
-import android.media.MediaPlayer
-import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
-import android.widget.Button
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
+    <!-- CONTENIDO PRINCIPAL -->
+    <ScrollView
+        android:id="@+id/layoutMainApp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#F5F6FA"
+        android:fillViewport="true">
 
-class MainActivity : AppCompatActivity() {
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
 
-    private var testPlayer: MediaPlayer? = null
-    private var paymentReceiver: BroadcastReceiver? = null
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Yaplin"
+                android:textSize="30sp"
+                android:textStyle="bold"
+                android:textColor="#5E17EB"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp" />
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Asistente de Cobros en Tiempo Real"
+                android:textSize="14sp"
+                android:textColor="#666666"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="16dp" />
 
-        val btnTestAudio = findViewById<Button>(R.id.btnTestAudio)
-        val btnBatterySettings = findViewById<Button>(R.id.btnBatterySettings)
-        val tvStatusBadge = findViewById<TextView>(R.id.tvStatusBadge)
+            <!-- 1. Estado Principal -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#FFFFFF"
+                android:padding="14dp"
+                android:elevation="3dp"
+                android:gravity="center"
+                android:layout_marginBottom="14dp">
 
-        tvStatusBadge.setOnClickListener {
-            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-        }
+                <TextView
+                    android:id="@+id/tvStatusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="● ESTADO: ACTIVO"
+                    android:textColor="#2E7D32"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:background="#E8F5E9"
+                    android:paddingLeft="12dp"
+                    android:paddingRight="12dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp" />
 
-        btnTestAudio.setOnClickListener {
-            playTestSequence()
-        }
+                <TextView
+                    android:id="@+id/tvStatusSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Escuchando pagos en segundo plano"
+                    android:textColor="#555555"
+                    android:textSize="13sp"
+                    android:layout_marginTop="6dp" />
+            </LinearLayout>
 
-        btnBatterySettings.setOnClickListener {
-            openBatterySettings()
-        }
+            <!-- 2. Servicios Monitoreados -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#FFFFFF"
+                android:padding="14dp"
+                android:elevation="3dp"
+                android:layout_marginBottom="14dp">
 
-        paymentReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                val service = intent?.getStringExtra("service") ?: "Pago"
-                val amount = intent?.getStringExtra("amount") ?: "0.00"
-                val time = intent?.getStringExtra("time") ?: ""
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SERVICIOS MONITOREADOS"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="#777777"
+                    android:layout_marginBottom="6dp" />
 
-                findViewById<TextView>(R.id.tvLastAmount)?.text = "S/ $amount"
-                findViewById<TextView>(R.id.tvLastServiceDetail)?.text = "$service • $time"
-            }
-        }
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
-        val filter = IntentFilter("com.rasecalay.yaplin.NUEVO_PAGO")
-        registerReceiver(paymentReceiver, filter)
-    }
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Yape (BCP) y Plin"
+                        android:textColor="#222222"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
 
-    override fun onResume() {
-        super.onResume()
-        updatePermissionStatus()
-    }
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="CONECTADO"
+                        android:textColor="#1976D2"
+                        android:textStyle="bold"
+                        android:textSize="12sp"
+                        android:background="#E3F2FD"
+                        android:paddingLeft="8dp"
+                        android:paddingRight="8dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp" />
+                </LinearLayout>
+            </LinearLayout>
 
-    private fun updatePermissionStatus() {
-        val tvStatusBadge = findViewById<TextView>(R.id.tvStatusBadge)
-        val tvStatusSub = findViewById<TextView>(R.id.tvStatusSub)
-        val hasPermission = isNotificationServiceEnabled()
+            <!-- 3. Tarjeta de Último Pago Detectado -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#FFFFFF"
+                android:padding="16dp"
+                android:elevation="3dp"
+                android:layout_marginBottom="14dp">
 
-        if (hasPermission) {
-            tvStatusBadge.text = "● ESTADO: ACTIVO"
-            tvStatusBadge.setTextColor(android.graphics.Color.parseColor("#2E7D32"))
-            tvStatusBadge.setBackgroundColor(android.graphics.Color.parseColor("#E8F5E9"))
-            tvStatusSub.text = "Escuchando pagos en segundo plano"
-        } else {
-            tvStatusBadge.text = "● ESTADO: INACTIVO (Toca aquí)"
-            tvStatusBadge.setTextColor(android.graphics.Color.parseColor("#C62828"))
-            tvStatusBadge.setBackgroundColor(android.graphics.Color.parseColor("#FFEBEE"))
-            tvStatusSub.text = "Toca para conceder permiso de notificaciones"
-        }
-    }
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ÚLTIMO PAGO DETECTADO"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="#777777" />
 
-    private fun isNotificationServiceEnabled(): Boolean {
-        val cn = ComponentName(this, YaplinListener::class.java)
-        val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
-        return flat != null && flat.contains(cn.flattenToString())
-    }
+                <TextView
+                    android:id="@+id/tvLastAmount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="S/ --"
+                    android:textSize="28sp"
+                    android:textStyle="bold"
+                    android:textColor="#2E7D32"
+                    android:layout_marginTop="2dp" />
 
-    private fun playTestSequence() {
-        testPlayer?.release()
-        testPlayer = null
+                <TextView
+                    android:id="@+id/tvLastServiceDetail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="A la espera de notificaciones..."
+                    android:textColor="#888888"
+                    android:textSize="13sp"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
 
-        val playlist = AudioAmountBuilder.buildAudioPlaylist(this, 12.0, true)
-        var index = 0
+            <!-- 4. Tarjeta: Total de Hoy -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#FFFFFF"
+                android:padding="16dp"
+                android:elevation="3dp"
+                android:layout_marginBottom="16dp">
 
-        fun playNext() {
-            if (index >= playlist.size) {
-                testPlayer?.release()
-                testPlayer = null
-                return
-            }
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="TOTAL ACUMULADO HOY"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="#777777" />
 
-            val resId = playlist[index++]
-            try {
-                testPlayer = MediaPlayer().apply {
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .build()
-                    )
-                    val afd = resources.openRawResourceFd(resId)
-                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                    afd.close()
-                    prepare()
-                    start()
-                    setOnCompletionListener {
-                        it.release()
-                        testPlayer = null
-                        playNext()
-                    }
-                }
-            } catch (e: Exception) {
-                testPlayer?.release()
-                testPlayer = null
-                playNext()
-            }
-        }
-
-        playNext()
-    }
-
-    private fun openBatterySettings() {
-        try {
-            val intent = Intent()
-            val packageName = packageName
-            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                    intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                    intent.data = Uri.parse("package:$packageName")
-                } else {
-                    intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                    intent.data = Uri.parse("package:$packageName")
-                }
-            } else {
-                intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                intent.data = Uri.parse("package:$packageName")
-            }
-            startActivity(intent)
-        } catch (e: Exception) {
-            val fallback = Intent(Settings.ACTION_SETTINGS)
-            startActivity(fallback)
-        }
-    }
-
-    override fun onDestroy() {
-        testPlayer?.release()
-        testPlayer = null
-        try {
-            paymentReceiver?.let { unregisterReceiver(it) }
-        } catch (e: Exception) {
-            // Ignorar
-        }
-        super.onDestroy()
-    }
-}
+                <TextView
+                    android:id="@+id/tvDailyAccumulated"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="S/ 0.00"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:textColor="#2E7D32"
+                    android:layout_marginTop="2dp
