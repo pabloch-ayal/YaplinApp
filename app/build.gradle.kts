@@ -11,8 +11,8 @@ android {
         applicationId = "com.rasecalay.yaplin"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.3"
     }
 
     buildTypes {
