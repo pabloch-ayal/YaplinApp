@@ -1,9 +1,11 @@
 package com.rasecalay.yaplin
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.AssetFileDescriptor
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Build
@@ -21,9 +23,10 @@ import java.util.regex.Pattern
 
 class YaplinListener : NotificationListenerService() {
 
-    private var mediaPlayer: MediaPlayer? = null
+    private var currentMp: MediaPlayer? = null
+    private var nextMp: MediaPlayer? = null
     private var currentPlaylist: List<Int> = emptyList()
-    private var playlistIndex = 0
+    private var nextIndex = 0
 
     companion object {
         private const val TAG = "YaplinListener"
@@ -50,10 +53,11 @@ class YaplinListener : NotificationListenerService() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Monitor de Cobros Activo",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_MIN
             ).apply {
                 description = "Mantiene activo el lector automático de pagos Yaplin"
                 setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
@@ -61,10 +65,11 @@ class YaplinListener : NotificationListenerService() {
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Yaplin en ejecución")
-            .setContentText("Escuchando notificaciones de Yape y Plin en tiempo real")
+            .setContentText("Escuchando notificaciones de Yape y Plin en segundo plano")
             .setSmallIcon(R.drawable.ic_launcher)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .build()
 
         startForeground(NOTIFICATION_ID, notification)
@@ -108,7 +113,7 @@ class YaplinListener : NotificationListenerService() {
                 PaymentHistoryManager.addPayment(this, senderName, amountValue, serviceName, currentTime)
 
                 vibrateAlert()
-                playAmountSequence(amountValue, isYape)
+                playChainPlaylist(AudioAmountBuilder.buildAudioPlaylist(this, amountValue, isYape))
 
                 val broadcastIntent = Intent("com.rasecalay.yaplin.NUEVO_PAGO").apply {
                     setPackage(packageName)
@@ -122,56 +127,93 @@ class YaplinListener : NotificationListenerService() {
         }
     }
 
-    private fun playAmountSequence(amount: Double, isYape: Boolean) {
+    private fun playChainPlaylist(playlist: List<Int>) {
         stopPlayback()
-        currentPlaylist = AudioAmountBuilder.buildAudioPlaylist(this, amount, isYape)
-        playlistIndex = 0
-        playNextTrack()
-    }
+        if (playlist.isEmpty()) return
 
-    private fun playNextTrack() {
-        if (playlistIndex >= currentPlaylist.size) {
+        currentPlaylist = playlist
+        nextIndex = 0
+
+        currentMp = createPlayerForResource(currentPlaylist[nextIndex++])
+        if (currentMp == null) {
             stopPlayback()
             return
         }
 
-        val resId = currentPlaylist[playlistIndex]
-        playlistIndex++
+        prepareNextInChain()
 
-        try {
-            mediaPlayer = MediaPlayer().apply {
+        currentMp?.setOnCompletionListener {
+            it.release()
+            advanceChain()
+        }
+
+        currentMp?.start()
+    }
+
+    private fun prepareNextInChain() {
+        if (nextIndex < currentPlaylist.size) {
+            nextMp = createPlayerForResource(currentPlaylist[nextIndex++])
+            try {
+                if (nextMp != null && currentMp != null) {
+                    currentMp?.setNextMediaPlayer(nextMp)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error en setNextMediaPlayer: ${e.message}")
+            }
+        } else {
+            nextMp = null
+        }
+    }
+
+    private fun advanceChain() {
+        currentMp = nextMp
+        nextMp = null
+
+        if (currentMp != null) {
+            prepareNextInChain()
+            currentMp?.setOnCompletionListener {
+                it.release()
+                advanceChain()
+            }
+        } else {
+            stopPlayback()
+        }
+    }
+
+    private fun createPlayerForResource(resId: Int): MediaPlayer? {
+        return try {
+            val afd: AssetFileDescriptor = resources.openRawResourceFd(resId)
+            val mp = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .setUsage(AudioAttributes.USAGE_ALARM)
                         .build()
                 )
-
-                val afd = resources.openRawResourceFd(resId)
                 setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                afd.close()
-
                 prepare()
-                start()
-
-                setOnCompletionListener { mp ->
-                    mp.release()
-                    mediaPlayer = null
-                    playNextTrack()
-                }
             }
+            afd.close()
+            mp
         } catch (e: Exception) {
-            Log.e(TAG, "Error al reproducir: ${e.message}")
-            stopPlayback()
+            Log.e(TAG, "No se pudo preparar el recurso $resId: ${e.message}")
+            null
         }
     }
 
     private fun stopPlayback() {
         try {
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
+            currentMp?.stop()
+            currentMp?.release()
         } catch (_: Exception) {}
-        mediaPlayer = null
+        try {
+            nextMp?.stop()
+            nextMp?.release()
+        } catch (_: Exception) {}
+        currentMp = null
+        nextMp = null
+        currentPlaylist = emptyList()
+        nextIndex = 0
     }
 
     private fun vibrateAlert() {
