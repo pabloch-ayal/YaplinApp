@@ -3,6 +3,7 @@ package com.rasecalay.yaplin
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.AssetFileDescriptor
@@ -28,6 +29,9 @@ class YaplinListener : NotificationListenerService() {
     private var currentPlaylist: List<Int> = emptyList()
     private var nextIndex = 0
 
+    private var lastAnnouncementKey = ""
+    private var lastAnnouncementTime = 0L
+
     companion object {
         private const val TAG = "YaplinListener"
         private const val CHANNEL_ID = "yaplin_persistent_channel"
@@ -45,7 +49,23 @@ class YaplinListener : NotificationListenerService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startPersistentForeground()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                requestRebind(ComponentName(this, YaplinListener::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Error en requestRebind: ${e.message}")
+            }
+        }
         return START_STICKY
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                requestRebind(ComponentName(this, YaplinListener::class.java))
+            } catch (_: Exception) {}
+        }
     }
 
     private fun startPersistentForeground() {
@@ -78,7 +98,6 @@ class YaplinListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
         if (sbn == null) return
-
         if (!LicenseManager.isActivated(this)) return
 
         val pkg = sbn.packageName ?: return
@@ -87,20 +106,35 @@ class YaplinListener : NotificationListenerService() {
 
         if (!isYape && !isPlin) return
 
-        val extras = sbn.notification.extras
-        val title = extras.getString("android.title") ?: ""
-        val text = extras.getCharSequence("android.text")?.toString() ?: ""
-        val fullContent = "$title $text"
+        val fullText = extractAllNotificationText(sbn.notification)
+        val lowerText = fullText.lowercase(Locale.getDefault())
 
-        val pattern = Pattern.compile("(?i)S\\/?\\.?\\s*(\\d+(?:[.,]\\d{1,2})?)")
-        val matcher = pattern.matcher(fullContent)
+        saveDebugLog(pkg, fullText)
+
+        val ignoreKeywords = listOf("enviaste", "pagaste", "código", "verificación", "promoción", "descuento", "gana")
+        if (ignoreKeywords.any { lowerText.contains(it) }) return
+
+        val pattern = Pattern.compile("(?i)(?:S\\/?\\.?|soles)\\s*(\\d+(?:[.,]\\d{1,2})?)")
+        val matcher = pattern.matcher(fullText)
 
         if (matcher.find()) {
             val rawAmount = matcher.group(1)?.replace(",", ".") ?: "0"
             val amountValue = rawAmount.toDoubleOrNull() ?: 0.0
 
             if (amountValue > 0.0) {
-                val senderName = if (title.isNotBlank() && !title.contains("Yape", ignoreCase = true) && !title.contains("Plin", ignoreCase = true)) {
+                val currentKey = "$pkg-$amountValue"
+                val now = System.currentTimeMillis()
+                if (currentKey == lastAnnouncementKey && (now - lastAnnouncementTime) < 3000) {
+                    return
+                }
+                lastAnnouncementKey = currentKey
+                lastAnnouncementTime = now
+
+                val title = sbn.notification.extras?.getString("android.title") ?: ""
+                val senderName = if (title.isNotBlank() &&
+                    !title.contains("Yape", ignoreCase = true) &&
+                    !title.contains("Plin", ignoreCase = true)
+                ) {
                     title.trim()
                 } else {
                     "Cliente"
@@ -125,6 +159,32 @@ class YaplinListener : NotificationListenerService() {
                 sendBroadcast(broadcastIntent)
             }
         }
+    }
+
+    private fun extractAllNotificationText(notification: Notification): String {
+        val extras = notification.extras ?: return ""
+        val parts = mutableListOf<String>()
+
+        extras.getCharSequence("android.title")?.toString()?.let { parts.add(it) }
+        extras.getCharSequence("android.text")?.toString()?.let { parts.add(it) }
+        extras.getCharSequence("android.bigText")?.toString()?.let { parts.add(it) }
+        extras.getCharSequence("android.subText")?.toString()?.let { parts.add(it) }
+        extras.getCharSequence("android.infoText")?.toString()?.let { parts.add(it) }
+
+        val textLines = extras.getCharSequenceArray("android.textLines")
+        if (textLines != null && textLines.isNotEmpty()) {
+            parts.add(textLines.last().toString())
+        }
+
+        return parts.distinct().joinToString(" | ")
+    }
+
+    private fun saveDebugLog(pkg: String, content: String) {
+        try {
+            val prefs = getSharedPreferences("yaplin_debug", Context.MODE_PRIVATE)
+            val time = SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault()).format(Date())
+            prefs.edit().putString("last_event", "[$time] ($pkg): $content").apply()
+        } catch (_: Exception) {}
     }
 
     private fun playChainPlaylist(playlist: List<Int>) {
