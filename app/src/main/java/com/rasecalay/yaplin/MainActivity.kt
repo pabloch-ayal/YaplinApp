@@ -1,11 +1,15 @@
 package com.rasecalay.yaplin
 
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.AssetFileDescriptor
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
@@ -13,365 +17,705 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.service.notification.NotificationListenerService
+import android.text.InputFilter
+import android.text.InputType
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.bottomsheet.BottomSheetDialog
+import androidx.core.app.NotificationManagerCompat
+import java.net.URLEncoder
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    private var testPlayer: MediaPlayer? = null
-    private var paymentReceiver: BroadcastReceiver? = null
+    private lateinit var tvStatusBadge: TextView
+    private lateinit var tvStatusDesc: TextView
+    private lateinit var tvServiceBadge: TextView
+    private lateinit var tvLastAmount: TextView
+    private lateinit var tvLastDetail: TextView
+    private lateinit var tvDailyTotal: TextView
+    private lateinit var tvDailyCount: TextView
+    private lateinit var btnPermissions: Button
+
+    private var testCurrentMp: MediaPlayer? = null
+    private var testNextMp: MediaPlayer? = null
+    private var testPlaylist: List<Int> = emptyList()
+    private var testIndex = 0
+    private var titleTapCount = 0
+
+    private val paymentReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.rasecalay.yaplin.NUEVO_PAGO") {
+                val service = intent.getStringExtra("service") ?: "Yape"
+                val amount = intent.getStringExtra("amount") ?: "0.00"
+                val time = intent.getStringExtra("time") ?: ""
+                val sender = intent.getStringExtra("sender") ?: "Cliente"
+
+                tvLastAmount.text = "S/ $amount"
+                tvLastDetail.text = "$service • $sender ($time)"
+                refreshDailySummary()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
 
-        checkLicenseState()
-    }
+        if (!LicenseManager.isActivated(this)) {
+            showActivationScreen()
+            return
+        }
 
-    private fun checkLicenseState() {
-        val layoutMainApp = findViewById<View>(R.id.layoutMainApp)
-        val layoutLockOverlay = findViewById<View>(R.id.layoutLockOverlay)
+        buildMainDashboard()
 
-        if (LicenseManager.isActivated(this)) {
-            layoutLockOverlay.visibility = View.GONE
-            layoutMainApp.visibility = View.VISIBLE
-            setupMainApp()
-        } else {
-            layoutLockOverlay.visibility = View.VISIBLE
-            layoutMainApp.visibility = View.GONE
-            setupLockOverlay()
+        // Aviso discreto ÚNICAMENTE cuando falta 1 día para terminar la prueba gratuita
+        if (!LicenseManager.isPermanentlyActivated(this) && LicenseManager.getRemainingTrialDays(this) == 1) {
+            showLastDayTrialDialog()
         }
     }
 
-    private fun setupLockOverlay() {
-        val tvDeviceId = findViewById<TextView>(R.id.tvDeviceId)
-        val btnRequestWhatsApp = findViewById<Button>(R.id.btnRequestWhatsApp)
-        val etLicenseKey = findViewById<EditText>(R.id.etLicenseKey)
-        val btnActivateApp = findViewById<Button>(R.id.btnActivateApp)
-
-        val deviceId = LicenseManager.getOrCreateDeviceId(this)
-        tvDeviceId.text = deviceId
-
-        btnRequestWhatsApp.setOnClickListener {
-            LicenseManager.openWhatsAppActivation(this, deviceId)
-        }
-
-        btnActivateApp.setOnClickListener {
-            val key = etLicenseKey.text.toString()
-            if (LicenseManager.validateAndActivate(this, key)) {
-                Toast.makeText(this, "¡Activación exitosa! Bienvenido a Yaplin.", Toast.LENGTH_LONG).show()
-                checkLicenseState()
-            } else {
-                Toast.makeText(this, "Clave incorrecta. Verifica o solicita activación.", Toast.LENGTH_SHORT).show()
+    private fun showLastDayTrialDialog() {
+        val deviceId = LicenseManager.getDeviceId(this)
+        AlertDialog.Builder(this)
+            .setTitle("Aviso de período de prueba")
+            .setMessage("Te queda 1 día de prueba gratuita en Yaplin. Mañana la aplicación solicitará tu clave de activación permanente.\n\nID de tu equipo: $deviceId")
+            .setPositiveButton("Solicitar clave por WhatsApp") { _, _ ->
+                openWhatsAppForActivation(deviceId)
             }
+            .setNegativeButton("Continuar", null)
+            .show()
+    }
+
+    private fun openWhatsAppForActivation(deviceId: String) {
+        try {
+            val msg = "Hola, deseo activar Yaplin. Mi ID de dispositivo es: $deviceId"
+            val url = "https://api.whatsapp.com/send?phone=51939525004&text=" + URLEncoder.encode(msg, "UTF-8")
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: Exception) {
+            Toast.makeText(this, "No se pudo abrir WhatsApp", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun setupMainApp() {
-        val btnTestAudio = findViewById<Button>(R.id.btnTestAudio)
-        val btnBatterySettings = findViewById<Button>(R.id.btnBatterySettings)
-        val btnViewHistory = findViewById<Button>(R.id.btnViewHistory)
-        val tvStatusBadge = findViewById<TextView>(R.id.tvStatusBadge)
+    private fun showActivationScreen() {
+        val deviceId = LicenseManager.getDeviceId(this)
 
-        tvStatusBadge.setOnClickListener {
-            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        val root = ScrollView(this).apply {
+            setBackgroundColor(Color.parseColor("#121218"))
+            isFillViewport = true
         }
 
-        btnTestAudio.setOnClickListener {
-            playTestSequence()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(36), dp(24), dp(36))
         }
 
-        btnBatterySettings.setOnClickListener {
-            openBatterySettings()
+        val lockIcon = TextView(this).apply {
+            text = "🔒"
+            textSize = 46f
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(12))
         }
 
-        btnViewHistory.setOnClickListener {
-            showHistoryBottomSheet()
+        val title = TextView(this).apply {
+            text = "Activación de Yaplin"
+            textSize = 24f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
         }
 
-        paymentReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                val service = intent?.getStringExtra("service") ?: "Pago"
-                val amount = intent?.getStringExtra("amount") ?: "0.00"
-                val time = intent?.getStringExtra("time") ?: ""
+        val subtitle = TextView(this).apply {
+            text = "Tu período de prueba de 15 días ha finalizado. Envía tu ID por WhatsApp para obtener tu clave permanente."
+            textSize = 14f
+            setTextColor(Color.parseColor("#B0B3C6"))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(24))
+        }
 
-                findViewById<TextView>(R.id.tvLastAmount)?.text = "S/ $amount"
-                findViewById<TextView>(R.id.tvLastServiceDetail)?.text = "$service • $time"
+        val idCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            background = createCardDrawable("#1E1E2A", "#383A4F", 16)
+        }
 
-                updateDailyCard()
+        val idLabel = TextView(this).apply {
+            text = "TU ID DE DISPOSITIVO"
+            textSize = 11f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#9E9EB3"))
+            gravity = Gravity.CENTER
+        }
+
+        val idValue = TextView(this).apply {
+            text = deviceId
+            textSize = 28f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#00E676"))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(4), 0, 0)
+        }
+
+        idCard.addView(idLabel)
+        idCard.addView(idValue)
+
+        val btnWhatsapp = Button(this).apply {
+            text = "SOLICITAR ACTIVACIÓN POR WHATSAPP"
+            textSize = 14f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background = createRoundedDrawable("#25D366", 12)
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setOnClickListener {
+                openWhatsAppForActivation(deviceId)
             }
         }
 
-        val filter = IntentFilter("com.rasecalay.yaplin.NUEVO_PAGO")
-        registerReceiver(paymentReceiver, filter)
+        val inputKey = EditText(this).apply {
+            hint = "CLAVE DE ACTIVACIÓN"
+            textSize = 18f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.parseColor("#6E718A"))
+            gravity = Gravity.CENTER
+            inputType = InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            filters = arrayOf(InputFilter.AllCaps(), InputFilter.LengthFilter(6))
+            background = createCardDrawable("#1E1E2A", "#5E17EB", 12)
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+        }
 
-        updateDailyCard()
+        val btnActivate = Button(this).apply {
+            text = "ACTIVAR APLICACIÓN"
+            textSize = 15f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background = createRoundedDrawable("#5E17EB", 12)
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setOnClickListener {
+                val entered = inputKey.text.toString()
+                if (LicenseManager.validateAndActivate(this@MainActivity, entered)) {
+                    Toast.makeText(this@MainActivity, "¡Yaplin activado correctamente!", Toast.LENGTH_LONG).show()
+                    recreate()
+                } else {
+                    Toast.makeText(this@MainActivity, "Clave incorrecta. Verifica con soporte.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        container.addView(lockIcon)
+        container.addView(title)
+        container.addView(subtitle)
+        container.addView(idCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(16)
+        })
+        container.addView(btnWhatsapp, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(20)
+        })
+        container.addView(inputKey, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(14)
+        })
+        container.addView(btnActivate, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        root.addView(container)
+        setContentView(root)
     }
 
-    private fun updateDailyCard() {
-        val todayTotal = PaymentHistoryManager.getTodayTotal(this)
-        val todayRecords = PaymentHistoryManager.getTodayRecords(this)
+    private fun buildMainDashboard() {
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(Color.parseColor("#F3F4F8"))
+            isFillViewport = true
+        }
 
-        findViewById<TextView>(R.id.tvDailyAccumulated)?.text = String.format(Locale.US, "S/ %.2f", todayTotal)
-        findViewById<TextView>(R.id.tvDailyCountText)?.text = "${todayRecords.size} pagos registrados hoy"
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(24), dp(18), dp(24))
+        }
+
+        // Encabezado (tocar 3 veces abre el diagnóstico inteligente)
+        val tvTitle = TextView(this).apply {
+            text = "Yaplin"
+            textSize = 28f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#5E17EB"))
+            gravity = Gravity.CENTER
+            setOnClickListener {
+                titleTapCount++
+                if (titleTapCount >= 3) {
+                    titleTapCount = 0
+                    showDiagnosticDialog()
+                }
+            }
+        }
+
+        val tvSubtitle = TextView(this).apply {
+            text = "Asistente de Cobros en Tiempo Real"
+            textSize = 14f
+            setTextColor(Color.parseColor("#5F6368"))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(2), 0, dp(18))
+        }
+
+        root.addView(tvTitle)
+        root.addView(tvSubtitle)
+
+        // Tarjeta 1: Estado
+        val cardStatus = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
+        }
+
+        tvStatusBadge = TextView(this).apply {
+            text = "● ESTADO: ACTIVO"
+            textSize = 15f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#137333"))
+            background = createRoundedDrawable("#E6F4EA", 8)
+            setPadding(dp(14), dp(6), dp(14), dp(6))
+        }
+
+        tvStatusDesc = TextView(this).apply {
+            text = "Escuchando pagos en segundo plano"
+            textSize = 13f
+            setTextColor(Color.parseColor("#5F6368"))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, 0)
+        }
+
+        cardStatus.addView(tvStatusBadge)
+        cardStatus.addView(tvStatusDesc)
+        root.addView(cardStatus, defaultCardParams())
+
+        // Tarjeta 2: Servicios monitoreados
+        val cardServices = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
+        }
+
+        val leftServiceCol = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val lblServices = TextView(this).apply {
+            text = "SERVICIOS MONITOREADOS"
+            textSize = 11f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#80868B"))
+        }
+
+        val valServices = TextView(this).apply {
+            text = "Yape (BCP) y Plin"
+            textSize = 15f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#202124"))
+            setPadding(0, dp(2), 0, 0)
+        }
+
+        leftServiceCol.addView(lblServices)
+        leftServiceCol.addView(valServices)
+
+        tvServiceBadge = TextView(this).apply {
+            text = "CONECTADO"
+            textSize = 11f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#1967D2"))
+            background = createRoundedDrawable("#E8F0FE", 8)
+            setPadding(dp(10), dp(5), dp(10), dp(5))
+        }
+
+        cardServices.addView(leftServiceCol)
+        cardServices.addView(tvServiceBadge)
+        root.addView(cardServices, defaultCardParams())
+
+        // Tarjeta 3: Último pago
+        val cardLast = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
+        }
+
+        val lblLast = TextView(this).apply {
+            text = "ÚLTIMO PAGO DETECTADO"
+            textSize = 11f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#80868B"))
+        }
+
+        tvLastAmount = TextView(this).apply {
+            text = "S/ --"
+            textSize = 26f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#137333"))
+            setPadding(0, dp(4), 0, dp(2))
+        }
+
+        tvLastDetail = TextView(this).apply {
+            text = "A la espera de notificaciones..."
+            textSize = 13f
+            setTextColor(Color.parseColor("#5F6368"))
+        }
+
+        cardLast.addView(lblLast)
+        cardLast.addView(tvLastAmount)
+        cardLast.addView(tvLastDetail)
+        root.addView(cardLast, defaultCardParams())
+
+        // Tarjeta 4: Total acumulado hoy
+        val cardTotal = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
+        }
+
+        val lblTotal = TextView(this).apply {
+            text = "TOTAL ACUMULADO HOY"
+            textSize = 11f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#80868B"))
+        }
+
+        tvDailyTotal = TextView(this).apply {
+            text = "S/ 0.00"
+            textSize = 26f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#137333"))
+            setPadding(0, dp(4), 0, dp(2))
+        }
+
+        tvDailyCount = TextView(this).apply {
+            text = "0 pagos registrados hoy"
+            textSize = 13f
+            setTextColor(Color.parseColor("#5F6368"))
+            setPadding(0, 0, 0, dp(12))
+        }
+
+        val btnHistory = Button(this).apply {
+            text = "📊 VER DETALLE E HISTORIAL"
+            textSize = 13f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#5E17EB"))
+            background = createRoundedDrawable("#F3E8FF", 10)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, HistoryActivity::class.java))
+            }
+        }
+
+        cardTotal.addView(lblTotal)
+        cardTotal.addView(tvDailyTotal)
+        cardTotal.addView(tvDailyCount)
+        cardTotal.addView(btnHistory, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(cardTotal, defaultCardParams())
+
+        // Botón Prueba de Audio
+        val btnTestAudio = Button(this).apply {
+            text = "▶ PROBAR AUDIO DE PRUEBA"
+            textSize = 14f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background = createRoundedDrawable("#5E17EB", 12)
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setOnClickListener {
+                playTestSequence()
+            }
+        }
+        root.addView(btnTestAudio, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(10)
+        })
+
+        // Botón Evitar que Yape se duerma
+        val btnWakeYape = Button(this).apply {
+            text = "⚡ EVITAR QUE YAPE SE DUERMA"
+            textSize = 13f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#5E17EB"))
+            background = createCardDrawable("#FFFFFF", "#5E17EB", 12)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            setOnClickListener {
+                openYapeBatterySettings()
+            }
+        }
+        root.addView(btnWakeYape, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(10)
+        })
+
+        // Botón Permisos y Batería de Yaplin
+        btnPermissions = Button(this).apply {
+            text = "⚙ AJUSTES DE BATERÍA / PERMISOS"
+            textSize = 13f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#3C4043"))
+            background = createRoundedDrawable("#E4E6EB", 12)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            setOnClickListener {
+                openPermissionSettings()
+            }
+        }
+        root.addView(btnPermissions, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(16)
+        })
+
+        // Pie de página
+        val tvFooter = TextView(this).apply {
+            text = "Creado por: rasec-alay • v1.3"
+            textSize = 12f
+            setTextColor(Color.parseColor("#80868B"))
+            gravity = Gravity.CENTER
+        }
+        root.addView(tvFooter)
+
+        scroll.addView(root)
+        setContentView(scroll)
     }
 
-    private fun showHistoryBottomSheet() {
-        val dialog = BottomSheetDialog(this)
-        val view = layoutInflater.inflate(R.layout.bottom_sheet_history, null)
-        dialog.setContentView(view)
-
-        val tabToday = view.findViewById<TextView>(R.id.tabToday)
-        val tab7Days = view.findViewById<TextView>(R.id.tab7Days)
-        val container = view.findViewById<LinearLayout>(R.id.containerHistoryItems)
-
-        fun loadTodayTab() {
-            tabToday.setBackgroundColor(Color.parseColor("#5E17EB"))
-            tabToday.setTextColor(Color.WHITE)
-            tab7Days.setBackgroundColor(Color.TRANSPARENT)
-            tab7Days.setTextColor(Color.parseColor("#666666"))
-
-            container.removeAllViews()
-            val records = PaymentHistoryManager.getTodayRecords(this)
-
-            if (records.isEmpty()) {
-                val emptyTv = TextView(this).apply {
-                    text = "No hay pagos registrados hoy todavía."
-                    textSize = 14f
-                    setTextColor(Color.parseColor("#888888"))
-                    setPadding(16, 24, 16, 24)
+    private fun openYapeBatterySettings() {
+        val yapePkg = "com.bcp.innovacxion.yapeapp"
+        AlertDialog.Builder(this)
+            .setTitle("Evitar que Yape se duerma")
+            .setMessage("Se abrirá la configuración de Yape:\n\n1. Entra a 'Ahorro de batería' y elige 'Sin restricciones'.\n2. Activa 'Inicio automático' si está disponible.\n\nEsto evita que el celular congele las notificaciones de Yape.")
+            .setPositiveButton("Ir a ajustes de Yape") { _, _ ->
+                try {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:$yapePkg")
+                    }
+                    startActivity(intent)
+                } catch (_: Exception) {
+                    Toast.makeText(this, "No se encontró Yape instalado en este teléfono", Toast.LENGTH_SHORT).show()
                 }
-                container.addView(emptyTv)
-                return
             }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
 
-            for (r in records) {
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(0, 16, 0, 16)
-                }
+    private fun showDiagnosticDialog() {
+        val isListenerEnabled = NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+        val debugPrefs = getSharedPreferences("yaplin_debug", Context.MODE_PRIVATE)
+        val lastEvent = debugPrefs.getString("last_event", "Ningún evento recibido aún.")
+        val remainingDays = LicenseManager.getRemainingTrialDays(this)
+        val statusLic = if (LicenseManager.isPermanentlyActivated(this)) "Licencia Permanente" else "Prueba ($remainingDays días restantes)"
 
-                val leftCol = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                }
+        val report = """
+            • Escucha de notificaciones: ${if (isListenerEnabled) "CONECTADO" else "DESCONECTADO"}
+            • Estado de licencia: $statusLic
+            
+            Última notificación capturada:
+            $lastEvent
+        """.trimIndent()
 
-                val title = TextView(this).apply {
-                    text = "${r.service} • ${r.remitente}"
-                    textSize = 15f
-                    setTextColor(Color.parseColor("#222222"))
+        AlertDialog.Builder(this)
+            .setTitle("Diagnóstico Inteligente Yaplin")
+            .setMessage(report)
+            .setPositiveButton("Reconectar servicio") { _, _ ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    NotificationListenerService.requestRebind(ComponentName(this, YaplinListener::class.java))
                 }
-                val sub = TextView(this).apply {
-                    text = r.hora
-                    textSize = 12f
-                    setTextColor(Color.parseColor("#888888"))
-                }
-                leftCol.addView(title)
-                leftCol.addView(sub)
-
-                val amountTv = TextView(this).apply {
-                    text = String.format(Locale.US, "+ S/ %.2f", r.monto)
-                    textSize = 16f
-                    setTextColor(Color.parseColor("#2E7D32"))
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
-                }
-
-                row.addView(leftCol)
-                row.addView(amountTv)
-                container.addView(row)
-
-                val divider = View(this).apply {
-                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
-                    setBackgroundColor(Color.parseColor("#EEEEEE"))
-                }
-                container.addView(divider)
+                Toast.makeText(this, "Reconexión solicitada", Toast.LENGTH_SHORT).show()
             }
-        }
-
-        fun load7DaysTab() {
-            tab7Days.setBackgroundColor(Color.parseColor("#5E17EB"))
-            tab7Days.setTextColor(Color.WHITE)
-            tabToday.setBackgroundColor(Color.TRANSPARENT)
-            tabToday.setTextColor(Color.parseColor("#666666"))
-
-            container.removeAllViews()
-            val summaries = PaymentHistoryManager.get7DaysSummary(this)
-
-            if (summaries.isEmpty()) {
-                val emptyTv = TextView(this).apply {
-                    text = "No hay datos en los últimos 7 días."
-                    textSize = 14f
-                    setTextColor(Color.parseColor("#888888"))
-                    setPadding(16, 24, 16, 24)
-                }
-                container.addView(emptyTv)
-                return
-            }
-
-            for (s in summaries) {
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(0, 18, 0, 18)
-                }
-
-                val leftCol = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                }
-
-                val labelDate = if (s.fecha == PaymentHistoryManager.getTodayDateString()) "Hoy (${s.fecha})" else s.fecha
-                val title = TextView(this).apply {
-                    text = labelDate
-                    textSize = 15f
-                    setTextColor(Color.parseColor("#222222"))
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
-                }
-                val countTv = TextView(this).apply {
-                    text = "${s.count} cobro(s) realizado(s)"
-                    textSize = 12f
-                    setTextColor(Color.parseColor("#777777"))
-                }
-                leftCol.addView(title)
-                leftCol.addView(countTv)
-
-                val totalTv = TextView(this).apply {
-                    text = String.format(Locale.US, "S/ %.2f", s.total)
-                    textSize = 16f
-                    setTextColor(Color.parseColor("#5E17EB"))
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
-                }
-
-                row.addView(leftCol)
-                row.addView(totalTv)
-                container.addView(row)
-
-                val divider = View(this).apply {
-                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
-                    setBackgroundColor(Color.parseColor("#EEEEEE"))
-                }
-                container.addView(divider)
-            }
-        }
-
-        tabToday.setOnClickListener { loadTodayTab() }
-        tab7Days.setOnClickListener { load7DaysTab() }
-
-        loadTodayTab()
-        dialog.show()
+            .setNegativeButton("Cerrar", null)
+            .show()
     }
 
     override fun onResume() {
         super.onResume()
-        if (LicenseManager.isActivated(this)) {
-            updatePermissionStatus()
-            updateDailyCard()
+        if (!LicenseManager.isActivated(this)) {
+            recreate()
+            return
         }
-    }
+        updateServiceStatusUI()
+        refreshDailySummary()
 
-    private fun updatePermissionStatus() {
-        val tvStatusBadge = findViewById<TextView>(R.id.tvStatusBadge)
-        val tvStatusSub = findViewById<TextView>(R.id.tvStatusSub)
-        val hasPermission = isNotificationServiceEnabled()
-
-        if (hasPermission) {
-            tvStatusBadge.text = "● ESTADO: ACTIVO"
-            tvStatusBadge.setTextColor(Color.parseColor("#2E7D32"))
-            tvStatusBadge.setBackgroundColor(Color.parseColor("#E8F5E9"))
-            tvStatusSub.text = "Escuchando pagos en segundo plano"
+        val filter = IntentFilter("com.rasecalay.yaplin.NUEVO_PAGO")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(paymentReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
-            tvStatusBadge.text = "● ESTADO: INACTIVO (Toca aquí)"
-            tvStatusBadge.setTextColor(Color.parseColor("#C62828"))
-            tvStatusBadge.setBackgroundColor(Color.parseColor("#FFEBEE"))
-            tvStatusSub.text = "Toca para conceder permiso de notificaciones"
+            registerReceiver(paymentReceiver, filter)
         }
     }
 
-    private fun isNotificationServiceEnabled(): Boolean {
-        val cn = ComponentName(this, YaplinListener::class.java)
-        val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
-        return flat != null && flat.contains(cn.flattenToString())
+    override fun onPause() {
+        super.onPause()
+        try {
+            unregisterReceiver(paymentReceiver)
+        } catch (_: Exception) {}
+    }
+
+    private fun updateServiceStatusUI() {
+        val enabledPackages = NotificationManagerCompat.getEnabledListenerPackages(this)
+        val isNotificationEnabled = enabledPackages.contains(packageName)
+
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val isBatteryIgnored = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            pm.isIgnoringBatteryOptimizations(packageName)
+        } else true
+
+        if (isNotificationEnabled) {
+            tvStatusBadge.text = "● ESTADO: ACTIVO"
+            tvStatusBadge.setTextColor(Color.parseColor("#137333"))
+            tvStatusBadge.background = createRoundedDrawable("#E6F4EA", 8)
+            tvStatusDesc.text = "Escuchando pagos en segundo plano"
+            tvServiceBadge.text = "CONECTADO"
+            tvServiceBadge.setTextColor(Color.parseColor("#1967D2"))
+            tvServiceBadge.background = createRoundedDrawable("#E8F0FE", 8)
+
+            val serviceIntent = Intent(this, YaplinListener::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } else {
+            tvStatusBadge.text = "● PERMISO REQUERIDO"
+            tvStatusBadge.setTextColor(Color.parseColor("#C5221F"))
+            tvStatusBadge.background = createRoundedDrawable("#FCE8E6", 8)
+            tvStatusDesc.text = "Activa el acceso a notificaciones para empezar"
+            tvServiceBadge.text = "DESCONECTADO"
+            tvServiceBadge.setTextColor(Color.parseColor("#C5221F"))
+            tvServiceBadge.background = createRoundedDrawable("#FCE8E6", 8)
+        }
+
+        if (!isNotificationEnabled || !isBatteryIgnored) {
+            btnPermissions.setTextColor(Color.WHITE)
+            btnPermissions.background = createRoundedDrawable("#D93025", 12)
+        } else {
+            btnPermissions.setTextColor(Color.parseColor("#3C4043"))
+            btnPermissions.background = createRoundedDrawable("#E4E6EB", 12)
+        }
+    }
+
+    private fun openPermissionSettings() {
+        val enabledPackages = NotificationManagerCompat.getEnabledListenerPackages(this)
+        if (!enabledPackages.contains(packageName)) {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        } else {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            } catch (_: Exception) {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+        }
+    }
+
+    private fun refreshDailySummary() {
+        val summary = PaymentHistoryManager.getTodaySummary(this)
+        tvDailyTotal.text = String.format(Locale.US, "S/ %.2f", summary.first)
+        val count = summary.second
+        tvDailyCount.text = if (count == 1) "1 pago registrado hoy" else "$count pagos registrados hoy"
     }
 
     private fun playTestSequence() {
-        testPlayer?.release()
-        testPlayer = null
+        stopTestAudio()
+        testPlaylist = AudioAmountBuilder.buildAudioPlaylist(this, 12.0, true)
+        if (testPlaylist.isEmpty()) return
 
-        val playlist = AudioAmountBuilder.buildAudioPlaylist(this, 12.0, true)
-        var index = 0
+        testIndex = 0
+        testCurrentMp = createTestMp(testPlaylist[testIndex++]) ?: return
+        prepareNextTestMp()
 
-        fun playNext() {
-            if (index >= playlist.size) {
-                testPlayer?.release()
-                testPlayer = null
-                return
-            }
+        testCurrentMp?.setOnCompletionListener {
+            it.release()
+            advanceTestChain()
+        }
+        testCurrentMp?.start()
+    }
 
-            val resId = playlist[index++]
+    private fun prepareNextTestMp() {
+        if (testIndex < testPlaylist.size) {
+            testNextMp = createTestMp(testPlaylist[testIndex++])
             try {
-                testPlayer = MediaPlayer().apply {
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .build()
-                    )
-                    val afd = resources.openRawResourceFd(resId)
-                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                    afd.close()
-                    prepare()
-                    start()
-                    setOnCompletionListener {
-                        it.release()
-                        testPlayer = null
-                        playNext()
-                    }
+                if (testNextMp != null && testCurrentMp != null) {
+                    testCurrentMp?.setNextMediaPlayer(testNextMp)
                 }
-            } catch (_: Exception) {
-                testPlayer?.release()
-                testPlayer = null
-                playNext()
-            }
+            } catch (_: Exception) {}
+        } else {
+            testNextMp = null
         }
-
-        playNext()
     }
 
-    private fun openBatterySettings() {
-        try {
-            val intent = Intent()
-            val packageName = packageName
-            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                    intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                    intent.data = Uri.parse("package:$packageName")
-                } else {
-                    intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                    intent.data = Uri.parse("package:$packageName")
-                }
-            } else {
-                intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                intent.data = Uri.parse("package:$packageName")
+    private fun advanceTestChain() {
+        testCurrentMp = testNextMp
+        testNextMp = null
+        if (testCurrentMp != null) {
+            prepareNextTestMp()
+            testCurrentMp?.setOnCompletionListener {
+                it.release()
+                advanceTestChain()
             }
-            startActivity(intent)
+        } else {
+            stopTestAudio()
+        }
+    }
+
+    private fun createTestMp(resId: Int): MediaPlayer? {
+        return try {
+            val afd: AssetFileDescriptor = resources.openRawResourceFd(resId)
+            val mp = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .build()
+                )
+                setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                prepare()
+            }
+            afd.close()
+            mp
         } catch (_: Exception) {
-            startActivity(Intent(Settings.ACTION_SETTINGS))
+            null
         }
     }
+
+    private fun stopTestAudio() {
+        try { testCurrentMp?.stop(); testCurrentMp?.release() } catch (_: Exception) {}
+        try { testNextMp?.stop(); testNextMp?.release() } catch (_: Exception) {}
+        testCurrentMp = null
+        testNextMp = null
+    }
+
+    private fun defaultCardParams(): LinearLayout.LayoutParams {
+        return LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            bottomMargin = dp(12)
+        }
+    }
+
+    private fun createCardDrawable(bgHex: String, strokeHex: String, radiusDp: Int): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(Color.parseColor(bgHex))
+            setStroke(dp(1), Color.parseColor(strokeHex))
+            cornerRadius = dp(radiusDp).toFloat()
+        }
+    }
+
+    private fun createRoundedDrawable(bgHex: String, radiusDp: Int): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(Color.parseColor(bgHex))
+            cornerRadius = dp(radiusDp).toFloat()
+        }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
-        testPlayer?.release()
-        testPlayer = null
-        try {
-            paymentReceiver?.let { unregisterReceiver(it) }
-        } catch (_: Exception) {}
+        stopTestAudio()
         super.onDestroy()
     }
 }
