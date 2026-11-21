@@ -75,7 +75,6 @@ class MainActivity : AppCompatActivity() {
 
         buildMainDashboard()
 
-        // Aviso discreto ÚNICAMENTE cuando falta 1 día para terminar la prueba gratuita
         if (!LicenseManager.isPermanentlyActivated(this) && LicenseManager.getRemainingTrialDays(this) == 1) {
             showLastDayTrialDialog()
         }
@@ -239,7 +238,6 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(18), dp(24), dp(18), dp(24))
         }
 
-        // Encabezado (tocar 3 veces abre el diagnóstico inteligente)
         val tvTitle = TextView(this).apply {
             text = "Yaplin"
             textSize = 28f
@@ -266,7 +264,6 @@ class MainActivity : AppCompatActivity() {
         root.addView(tvTitle)
         root.addView(tvSubtitle)
 
-        // Tarjeta 1: Estado
         val cardStatus = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -295,7 +292,6 @@ class MainActivity : AppCompatActivity() {
         cardStatus.addView(tvStatusDesc)
         root.addView(cardStatus, defaultCardParams())
 
-        // Tarjeta 2: Servicios monitoreados
         val cardServices = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -339,7 +335,6 @@ class MainActivity : AppCompatActivity() {
         cardServices.addView(tvServiceBadge)
         root.addView(cardServices, defaultCardParams())
 
-        // Tarjeta 3: Último pago
         val cardLast = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
@@ -372,7 +367,6 @@ class MainActivity : AppCompatActivity() {
         cardLast.addView(tvLastDetail)
         root.addView(cardLast, defaultCardParams())
 
-        // Tarjeta 4: Total acumulado hoy
         val cardTotal = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
@@ -419,7 +413,6 @@ class MainActivity : AppCompatActivity() {
         cardTotal.addView(btnHistory, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         root.addView(cardTotal, defaultCardParams())
 
-        // Botón Prueba de Audio
         val btnTestAudio = Button(this).apply {
             text = "▶ PROBAR AUDIO DE PRUEBA"
             textSize = 14f
@@ -435,7 +428,6 @@ class MainActivity : AppCompatActivity() {
             bottomMargin = dp(10)
         })
 
-        // Botón Evitar que Yape se duerma
         val btnWakeYape = Button(this).apply {
             text = "⚡ EVITAR QUE YAPE SE DUERMA"
             textSize = 13f
@@ -451,7 +443,6 @@ class MainActivity : AppCompatActivity() {
             bottomMargin = dp(10)
         })
 
-        // Botón Permisos y Batería de Yaplin
         btnPermissions = Button(this).apply {
             text = "⚙ AJUSTES DE BATERÍA / PERMISOS"
             textSize = 13f
@@ -467,8 +458,291 @@ class MainActivity : AppCompatActivity() {
             bottomMargin = dp(16)
         })
 
-        // Pie de página
         val tvFooter = TextView(this).apply {
             text = "Creado por: rasec-alay • v1.3"
             textSize = 12f
-            setTextColor(Color
+            setTextColor(Color.parseColor("#80868B"))
+            gravity = Gravity.CENTER
+        }
+        root.addView(tvFooter)
+
+        scroll.addView(root)
+        setContentView(scroll)
+    }
+
+    private fun showHistoryDialog() {
+        val todayRecords = PaymentHistoryManager.getTodayRecords(this)
+        val summaries = PaymentHistoryManager.get7DaysSummary(this)
+
+        val sb = StringBuilder()
+        sb.append("📅 RESUMEN ÚLTIMOS 7 DÍAS:\n")
+        if (summaries.isEmpty()) {
+            sb.append("Sin movimientos registrados.\n")
+        } else {
+            for (s in summaries) {
+                sb.append("• ${s.fecha}: S/ ${String.format(Locale.US, "%.2f", s.total)} (${s.count} cobros)\n")
+            }
+        }
+
+        sb.append("\n🧾 DETALLE DE HOY:\n")
+        if (todayRecords.isEmpty()) {
+            sb.append("Aún no hay pagos registrados hoy.")
+        } else {
+            for (r in todayRecords) {
+                sb.append("• [${r.hora}] ${r.service} - ${r.remitente}: S/ ${String.format(Locale.US, "%.2f", r.monto)}\n")
+            }
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Detalle e Historial (7 días)")
+            .setMessage(sb.toString().trim())
+            .setPositiveButton("Cerrar", null)
+            .show()
+    }
+
+    private fun openYapeBatterySettings() {
+        val yapePkg = "com.bcp.innovacxion.yapeapp"
+        AlertDialog.Builder(this)
+            .setTitle("Evitar que Yape se duerma")
+            .setMessage("Se abrirá la configuración de Yape:\n\n1. Entra a 'Ahorro de batería' y elige 'Sin restricciones'.\n2. Activa 'Inicio automático' si está disponible.\n\nEsto evita que el celular congele las notificaciones de Yape.")
+            .setPositiveButton("Ir a ajustes de Yape") { _, _ ->
+                try {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:$yapePkg")
+                    }
+                    startActivity(intent)
+                } catch (_: Exception) {
+                    Toast.makeText(this, "No se encontró Yape instalado en este teléfono", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun showDiagnosticDialog() {
+        val isListenerEnabled = NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+        val debugPrefs = getSharedPreferences("yaplin_debug", Context.MODE_PRIVATE)
+        val lastEvent = debugPrefs.getString("last_event", "Ningún evento recibido aún.")
+        val remainingDays = LicenseManager.getRemainingTrialDays(this)
+        val statusLic = if (LicenseManager.isPermanentlyActivated(this)) "Licencia Permanente" else "Prueba ($remainingDays días restantes)"
+
+        val report = """
+            • Escucha de notificaciones: ${if (isListenerEnabled) "CONECTADO" else "DESCONECTADO"}
+            • Estado de licencia: $statusLic
+            
+            Última notificación capturada:
+            $lastEvent
+        """.trimIndent()
+
+        AlertDialog.Builder(this)
+            .setTitle("Diagnóstico Inteligente Yaplin")
+            .setMessage(report)
+            .setPositiveButton("Reconectar servicio") { _, _ ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    NotificationListenerService.requestRebind(ComponentName(this, YaplinListener::class.java))
+                }
+                Toast.makeText(this, "Reconexión solicitada", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!LicenseManager.isActivated(this)) {
+            recreate()
+            return
+        }
+        updateServiceStatusUI()
+        refreshDailySummary()
+
+        val filter = IntentFilter("com.rasecalay.yaplin.NUEVO_PAGO")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(paymentReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(paymentReceiver, filter)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try {
+            unregisterReceiver(paymentReceiver)
+        } catch (_: Exception) {}
+    }
+
+    private fun updateServiceStatusUI() {
+        val enabledPackages = NotificationManagerCompat.getEnabledListenerPackages(this)
+        val isNotificationEnabled = enabledPackages.contains(packageName)
+
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val isBatteryIgnored = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            pm.isIgnoringBatteryOptimizations(packageName)
+        } else true
+
+        if (isNotificationEnabled) {
+            tvStatusBadge.text = "● ESTADO: ACTIVO"
+            tvStatusBadge.setTextColor(Color.parseColor("#137333"))
+            tvStatusBadge.background = createRoundedDrawable("#E6F4EA", 8)
+            tvStatusDesc.text = "Escuchando pagos en segundo plano"
+            tvServiceBadge.text = "CONECTADO"
+            tvServiceBadge.setTextColor(Color.parseColor("#1967D2"))
+            tvServiceBadge.background = createRoundedDrawable("#E8F0FE", 8)
+
+            val serviceIntent = Intent(this, YaplinListener::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } else {
+            tvStatusBadge.text = "● PERMISO REQUERIDO"
+            tvStatusBadge.setTextColor(Color.parseColor("#C5221F"))
+            tvStatusBadge.background = createRoundedDrawable("#FCE8E6", 8)
+            tvStatusDesc.text = "Activa el acceso a notificaciones para empezar"
+            tvServiceBadge.text = "DESCONECTADO"
+            tvServiceBadge.setTextColor(Color.parseColor("#C5221F"))
+            tvServiceBadge.background = createRoundedDrawable("#FCE8E6", 8)
+        }
+
+        if (!isNotificationEnabled || !isBatteryIgnored) {
+            btnPermissions.setTextColor(Color.WHITE)
+            btnPermissions.background = createRoundedDrawable("#D93025", 12)
+        } else {
+            btnPermissions.setTextColor(Color.parseColor("#3C4043"))
+            btnPermissions.background = createRoundedDrawable("#E4E6EB", 12)
+        }
+    }
+
+    private fun openPermissionSettings() {
+        val enabledPackages = NotificationManagerCompat.getEnabledListenerPackages(this)
+        if (!enabledPackages.contains(packageName)) {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        } else {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            } catch (_: Exception) {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+        }
+    }
+
+    private fun refreshDailySummary() {
+        val todayRecords = PaymentHistoryManager.getTodayRecords(this)
+        val total = PaymentHistoryManager.getTodayTotal(this)
+        val count = todayRecords.size
+
+        tvDailyTotal.text = String.format(Locale.US, "S/ %.2f", total)
+        tvDailyCount.text = if (count == 1) "1 pago registrado hoy" else "$count pagos registrados hoy"
+
+        if (todayRecords.isNotEmpty()) {
+            val latest = todayRecords.first()
+            tvLastAmount.text = String.format(Locale.US, "S/ %.2f", latest.monto)
+            tvLastDetail.text = "${latest.service} • ${latest.remitente} (${latest.hora})"
+        }
+    }
+
+    private fun playTestSequence() {
+        stopTestAudio()
+        testPlaylist = AudioAmountBuilder.buildAudioPlaylist(this, 12.0, true)
+        if (testPlaylist.isEmpty()) return
+
+        testIndex = 0
+        testCurrentMp = createTestMp(testPlaylist[testIndex++]) ?: return
+        prepareNextTestMp()
+
+        testCurrentMp?.setOnCompletionListener {
+            it.release()
+            advanceTestChain()
+        }
+        testCurrentMp?.start()
+    }
+
+    private fun prepareNextTestMp() {
+        if (testIndex < testPlaylist.size) {
+            testNextMp = createTestMp(testPlaylist[testIndex++])
+            try {
+                if (testNextMp != null && testCurrentMp != null) {
+                    testCurrentMp?.setNextMediaPlayer(testNextMp)
+                }
+            } catch (_: Exception) {}
+        } else {
+            testNextMp = null
+        }
+    }
+
+    private fun advanceTestChain() {
+        testCurrentMp = testNextMp
+        testNextMp = null
+        if (testCurrentMp != null) {
+            prepareNextTestMp()
+            testCurrentMp?.setOnCompletionListener {
+                it.release()
+                advanceTestChain()
+            }
+        } else {
+            stopTestAudio()
+        }
+    }
+
+    private fun createTestMp(resId: Int): MediaPlayer? {
+        return try {
+            val afd: AssetFileDescriptor = resources.openRawResourceFd(resId)
+            val mp = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .build()
+                )
+                setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                prepare()
+            }
+            afd.close()
+            mp
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun stopTestAudio() {
+        try { testCurrentMp?.stop(); testCurrentMp?.release() } catch (_: Exception) {}
+        try { testNextMp?.stop(); testNextMp?.release() } catch (_: Exception) {}
+        testCurrentMp = null
+        testNextMp = null
+    }
+
+    private fun defaultCardParams(): LinearLayout.LayoutParams {
+        return LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            bottomMargin = dp(12)
+        }
+    }
+
+    private fun createCardDrawable(bgHex: String, strokeHex: String, radiusDp: Int): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(Color.parseColor(bgHex))
+            setStroke(dp(1), Color.parseColor(strokeHex))
+            cornerRadius = dp(radiusDp).toFloat()
+        }
+    }
+
+    private fun createRoundedDrawable(bgHex: String, radiusDp: Int): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(Color.parseColor(bgHex))
+            cornerRadius = dp(radiusDp).toFloat()
+        }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    override fun onDestroy() {
+        stopTestAudio()
+        super.onDestroy()
+    }
+}
