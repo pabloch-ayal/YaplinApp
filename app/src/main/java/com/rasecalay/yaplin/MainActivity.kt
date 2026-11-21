@@ -234,12 +234,12 @@ class MainActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setPadding(dp(16), dp(18), dp(16), dp(16))
         }
 
         val tvTitle = TextView(this).apply {
             text = "Yaplin"
-            textSize = 26f
+            textSize = 28f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#5E17EB"))
             gravity = Gravity.CENTER
@@ -257,7 +257,7 @@ class MainActivity : AppCompatActivity() {
             textSize = 13f
             setTextColor(Color.parseColor("#5F6368"))
             gravity = Gravity.CENTER
-            setPadding(0, dp(2), 0, dp(12))
+            setPadding(0, dp(2), 0, dp(16))
         }
 
         root.addView(tvTitle)
@@ -267,7 +267,7 @@ class MainActivity : AppCompatActivity() {
         val cardStatus = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            setPadding(dp(16), dp(16), dp(16), dp(16))
             background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
         }
 
@@ -277,25 +277,26 @@ class MainActivity : AppCompatActivity() {
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#137333"))
             background = createRoundedDrawable("#E6F4EA", 8)
-            setPadding(dp(14), dp(5), dp(14), dp(5))
+            setPadding(dp(16), dp(6), dp(16), dp(6))
         }
 
         tvStatusDesc = TextView(this).apply {
             text = "Escuchando pagos en segundo plano"
-            textSize = 12f
+            textSize = 13f
             setTextColor(Color.parseColor("#5F6368"))
             gravity = Gravity.CENTER
-            setPadding(0, dp(6), 0, 0)
+            setPadding(0, dp(8), 0, 0)
         }
 
         cardStatus.addView(tvStatusBadge)
         cardStatus.addView(tvStatusDesc)
-        root.addView(cardStatus, defaultCardParams())
+        root.addView(cardStatus, balancedCardParams(1f))
 
         // Tarjeta 2: Último Pago Detectado
         val cardLast = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
             background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
         }
 
@@ -308,27 +309,28 @@ class MainActivity : AppCompatActivity() {
 
         tvLastAmount = TextView(this).apply {
             text = "S/ --"
-            textSize = 24f
+            textSize = 28f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#137333"))
-            setPadding(0, dp(2), 0, dp(2))
+            setPadding(0, dp(4), 0, dp(4))
         }
 
         tvLastDetail = TextView(this).apply {
             text = "A la espera de notificaciones..."
-            textSize = 12f
+            textSize = 13f
             setTextColor(Color.parseColor("#5F6368"))
         }
 
         cardLast.addView(lblLast)
         cardLast.addView(tvLastAmount)
         cardLast.addView(tvLastDetail)
-        root.addView(cardLast, defaultCardParams())
+        root.addView(cardLast, balancedCardParams(1.1f))
 
         // Tarjeta 3: Total Acumulado Hoy + Historial
         val cardTotal = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
             background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
         }
 
@@ -341,17 +343,17 @@ class MainActivity : AppCompatActivity() {
 
         tvDailyTotal = TextView(this).apply {
             text = "S/ 0.00"
-            textSize = 24f
+            textSize = 28f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#137333"))
-            setPadding(0, dp(2), 0, dp(2))
+            setPadding(0, dp(4), 0, dp(4))
         }
 
         tvDailyCount = TextView(this).apply {
             text = "0 pagos registrados hoy"
-            textSize = 12f
+            textSize = 13f
             setTextColor(Color.parseColor("#5F6368"))
-            setPadding(0, 0, 0, dp(8))
+            setPadding(0, 0, 0, dp(10))
         }
 
         val btnHistory = Button(this).apply {
@@ -360,7 +362,7 @@ class MainActivity : AppCompatActivity() {
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#5E17EB"))
             background = createRoundedDrawable("#F3E8FF", 10)
-            setPadding(dp(10), dp(8), dp(10), dp(8))
+            setPadding(dp(12), dp(10), dp(12), dp(10))
             setOnClickListener {
                 showHistoryDialog()
             }
@@ -370,7 +372,7 @@ class MainActivity : AppCompatActivity() {
         cardTotal.addView(tvDailyTotal)
         cardTotal.addView(tvDailyCount)
         cardTotal.addView(btnHistory, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        root.addView(cardTotal, defaultCardParams())
+        root.addView(cardTotal, balancedCardParams(1.3f))
 
         // Selector de Voz (Mujer / Hombre)
         val voiceRow = LinearLayout(this).apply {
@@ -385,19 +387,19 @@ class MainActivity : AppCompatActivity() {
             val isFemale = AudioAmountBuilder.getVoiceGender(this) == "f"
             btnVoiceFemale.apply {
                 text = "👩 VOZ MUJER"
-                textSize = 12f
+                textSize = 13f
                 setTypeface(null, Typeface.BOLD)
                 setTextColor(if (isFemale) Color.WHITE else Color.parseColor("#5E17EB"))
                 background = if (isFemale) createRoundedDrawable("#5E17EB", 10) else createCardDrawable("#FFFFFF", "#5E17EB", 10)
-                setPadding(dp(8), dp(9), dp(8), dp(9))
+                setPadding(dp(10), dp(11), dp(10), dp(11))
             }
             btnVoiceMale.apply {
                 text = "👨 VOZ HOMBRE"
-                textSize = 12f
+                textSize = 13f
                 setTypeface(null, Typeface.BOLD)
                 setTextColor(if (!isFemale) Color.WHITE else Color.parseColor("#5E17EB"))
                 background = if (!isFemale) createRoundedDrawable("#5E17EB", 10) else createCardDrawable("#FFFFFF", "#5E17EB", 10)
-                setPadding(dp(8), dp(9), dp(8), dp(9))
+                setPadding(dp(10), dp(11), dp(10), dp(11))
             }
         }
 
@@ -416,13 +418,13 @@ class MainActivity : AppCompatActivity() {
         refreshVoiceButtons()
 
         voiceRow.addView(btnVoiceFemale, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-            marginEnd = dp(5)
+            marginEnd = dp(6)
         })
         voiceRow.addView(btnVoiceMale, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-            marginStart = dp(5)
+            marginStart = dp(6)
         })
         root.addView(voiceRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(8)
+            bottomMargin = dp(10)
         })
 
         // Botón Prueba de Audio
@@ -432,13 +434,13 @@ class MainActivity : AppCompatActivity() {
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.WHITE)
             background = createRoundedDrawable("#5E17EB", 10)
-            setPadding(dp(12), dp(11), dp(12), dp(11))
+            setPadding(dp(12), dp(12), dp(12), dp(12))
             setOnClickListener {
                 playTestSequence()
             }
         }
         root.addView(btnTestAudio, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(8)
+            bottomMargin = dp(10)
         })
 
         // Botón Evitar que Yape se duerma
@@ -448,13 +450,13 @@ class MainActivity : AppCompatActivity() {
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#5E17EB"))
             background = createCardDrawable("#FFFFFF", "#5E17EB", 10)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(12), dp(11), dp(12), dp(11))
             setOnClickListener {
                 openYapeBatterySettings()
             }
         }
         root.addView(btnWakeYape, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(8)
+            bottomMargin = dp(10)
         })
 
         // Botón Ajustes de Batería / Permisos
@@ -464,13 +466,13 @@ class MainActivity : AppCompatActivity() {
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#3C4043"))
             background = createRoundedDrawable("#E4E6EB", 10)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(12), dp(11), dp(12), dp(11))
             setOnClickListener {
                 openPermissionSettings()
             }
         }
         root.addView(btnPermissions, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(10)
+            bottomMargin = dp(12)
         })
 
         val tvFooter = TextView(this).apply {
@@ -724,12 +726,13 @@ class MainActivity : AppCompatActivity() {
         testNextMp = null
     }
 
-    private fun defaultCardParams(): LinearLayout.LayoutParams {
+    private fun balancedCardParams(weightVal: Float): LinearLayout.LayoutParams {
         return LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
+            0,
+            weightVal
         ).apply {
-            bottomMargin = dp(9)
+            bottomMargin = dp(12)
         }
     }
 
