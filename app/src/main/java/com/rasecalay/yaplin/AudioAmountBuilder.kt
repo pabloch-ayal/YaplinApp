@@ -4,52 +4,89 @@ import android.content.Context
 
 object AudioAmountBuilder {
 
+    private const val PREFS_VOICE = "yaplin_voice_prefs"
+    private const val KEY_VOICE_GENDER = "voice_gender" // "f" = Mujer, "m" = Hombre
+
+    fun setVoiceGender(context: Context, gender: String) {
+        val clean = if (gender == "m") "m" else "f"
+        context.getSharedPreferences(PREFS_VOICE, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_VOICE_GENDER, clean)
+            .apply()
+    }
+
+    fun getVoiceGender(context: Context): String {
+        return context.getSharedPreferences(PREFS_VOICE, Context.MODE_PRIVATE)
+            .getString(KEY_VOICE_GENDER, "f") ?: "f"
+    }
+
     fun buildAudioPlaylist(context: Context, amountDouble: Double, isYape: Boolean): List<Int> {
         val playlist = mutableListOf<Int>()
+        val prefix = getVoiceGender(context) // "f" o "m"
 
-        val introName = if (isYape) "audio_yape" else "audio_plin"
-        getRawId(context, introName)?.let { playlist.add(it) }
+        val introKey = if (isYape) "${prefix}_yape" else "${prefix}_plin"
+        getRawId(context, introKey)?.let { playlist.add(it) }
 
-        val entero = amountDouble.toInt()
-        val centavos = Math.round((amountDouble - entero) * 100).toInt()
+        val totalCentavos = Math.round(amountDouble * 100).toInt()
+        val entero = totalCentavos / 100
+        val centavos = totalCentavos % 100
 
-        if (entero > 0) {
-            playlist.addAll(resolveNumberToAudios(context, entero))
-            getRawId(context, "audio_soles")?.let { playlist.add(it) }
+        if (entero == 1) {
+            getRawId(context, "${prefix}_1_sol")?.let { playlist.add(it) }
+        } else if (entero > 1) {
+            playlist.addAll(resolveNumberToAudios(context, prefix, entero))
+            getRawId(context, "${prefix}_soles")?.let { playlist.add(it) }
         }
 
         if (centavos > 0) {
-            getRawId(context, "audio_con")?.let { playlist.add(it) }
-            playlist.addAll(resolveNumberToAudios(context, centavos))
-            getRawId(context, "audio_centimos")?.let { playlist.add(it) }
+            if (entero > 0) {
+                getRawId(context, "${prefix}_con")?.let { playlist.add(it) }
+            }
+            playlist.addAll(resolveNumberToAudios(context, prefix, centavos))
+            getRawId(context, "${prefix}_centimos")?.let { playlist.add(it) }
         }
 
         return playlist
     }
 
-    private fun resolveNumberToAudios(context: Context, number: Int): List<Int> {
+    private fun resolveNumberToAudios(context: Context, prefix: String, number: Int): List<Int> {
         val list = mutableListOf<Int>()
+        if (number <= 0) return list
 
-        if (number in 1..29) {
-            getRawId(context, "audio_$number")?.let { list.add(it) }
-            return list
-        }
+        var resto = number
 
-        if (number in 30..99) {
-            val decena = (number / 10) * 10
-            val unidad = number % 10
-
-            getRawId(context, "audio_$decena")?.let { list.add(it) }
-            if (unidad > 0) {
-                getRawId(context, "audio_y")?.let { list.add(it) }
-                getRawId(context, "audio_$unidad")?.let { list.add(it) }
+        // Centenas (100 a 999)
+        if (resto >= 100) {
+            if (resto == 100) {
+                getRawId(context, "${prefix}_100")?.let { list.add(it) }
+                return list
+            } else if (resto in 101..199) {
+                getRawId(context, "${prefix}_ciento")?.let { list.add(it) }
+                resto %= 100
+            } else {
+                val centena = (resto / 100) * 100
+                getRawId(context, "${prefix}_$centena")?.let { list.add(it) }
+                resto %= 100
             }
+        }
+
+        if (resto == 0) return list
+
+        // 1 a 29 (en una sola palabra)
+        if (resto in 1..29) {
+            getRawId(context, "${prefix}_$resto")?.let { list.add(it) }
             return list
         }
 
-        if (number == 100) {
-            getRawId(context, "audio_100")?.let { list.add(it) }
-            return list
+        // 30 a 99
+        if (resto in 30..99) {
+            val decena = (resto / 10) * 10
+            val unidad = resto % 10
+            getRawId(context, "${prefix}_$decena")?.let { list.add(it) }
+            if (unidad > 0) {
+                getRawId(context, "${prefix}_y")?.let { list.add(it) }
+                getRawId(context, "${prefix}_$unidad")?.let { list.add(it) }
+            }
         }
 
         return list
