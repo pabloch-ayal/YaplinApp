@@ -37,7 +37,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var tvStatusBadge: TextView
     private lateinit var tvStatusDesc: TextView
-    private lateinit var tvServiceBadge: TextView
     private lateinit var tvLastAmount: TextView
     private lateinit var tvLastDetail: TextView
     private lateinit var tvDailyTotal: TextView
@@ -235,12 +234,12 @@ class MainActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(24), dp(18), dp(24))
+            setPadding(dp(16), dp(14), dp(16), dp(14))
         }
 
         val tvTitle = TextView(this).apply {
             text = "Yaplin"
-            textSize = 28f
+            textSize = 26f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#5E17EB"))
             gravity = Gravity.CENTER
@@ -254,90 +253,49 @@ class MainActivity : AppCompatActivity() {
         }
 
         val tvSubtitle = TextView(this).apply {
-            text = "Asistente de Cobros en Tiempo Real"
-            textSize = 14f
+            text = "Asistente de Cobros en Tiempo Real (Yape y Plin)"
+            textSize = 13f
             setTextColor(Color.parseColor("#5F6368"))
             gravity = Gravity.CENTER
-            setPadding(0, dp(2), 0, dp(18))
+            setPadding(0, dp(2), 0, dp(12))
         }
 
         root.addView(tvTitle)
         root.addView(tvSubtitle)
 
+        // Tarjeta 1: Estado del Servicio
         val cardStatus = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setPadding(dp(14), dp(12), dp(14), dp(12))
             background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
         }
 
         tvStatusBadge = TextView(this).apply {
             text = "● ESTADO: ACTIVO"
-            textSize = 15f
+            textSize = 14f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#137333"))
             background = createRoundedDrawable("#E6F4EA", 8)
-            setPadding(dp(14), dp(6), dp(14), dp(6))
+            setPadding(dp(14), dp(5), dp(14), dp(5))
         }
 
         tvStatusDesc = TextView(this).apply {
             text = "Escuchando pagos en segundo plano"
-            textSize = 13f
+            textSize = 12f
             setTextColor(Color.parseColor("#5F6368"))
             gravity = Gravity.CENTER
-            setPadding(0, dp(8), 0, 0)
+            setPadding(0, dp(6), 0, 0)
         }
 
         cardStatus.addView(tvStatusBadge)
         cardStatus.addView(tvStatusDesc)
         root.addView(cardStatus, defaultCardParams())
 
-        val cardServices = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
-        }
-
-        val leftServiceCol = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        }
-
-        val lblServices = TextView(this).apply {
-            text = "SERVICIOS MONITOREADOS"
-            textSize = 11f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.parseColor("#80868B"))
-        }
-
-        val valServices = TextView(this).apply {
-            text = "Yape (BCP) y Plin"
-            textSize = 15f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.parseColor("#202124"))
-            setPadding(0, dp(2), 0, 0)
-        }
-
-        leftServiceCol.addView(lblServices)
-        leftServiceCol.addView(valServices)
-
-        tvServiceBadge = TextView(this).apply {
-            text = "CONECTADO"
-            textSize = 11f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.parseColor("#1967D2"))
-            background = createRoundedDrawable("#E8F0FE", 8)
-            setPadding(dp(10), dp(5), dp(10), dp(5))
-        }
-
-        cardServices.addView(leftServiceCol)
-        cardServices.addView(tvServiceBadge)
-        root.addView(cardServices, defaultCardParams())
-
+        // Tarjeta 2: Último Pago Detectado
         val cardLast = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setPadding(dp(14), dp(12), dp(14), dp(12))
             background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
         }
 
@@ -350,15 +308,15 @@ class MainActivity : AppCompatActivity() {
 
         tvLastAmount = TextView(this).apply {
             text = "S/ --"
-            textSize = 26f
+            textSize = 24f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#137333"))
-            setPadding(0, dp(4), 0, dp(2))
+            setPadding(0, dp(2), 0, dp(2))
         }
 
         tvLastDetail = TextView(this).apply {
             text = "A la espera de notificaciones..."
-            textSize = 13f
+            textSize = 12f
             setTextColor(Color.parseColor("#5F6368"))
         }
 
@@ -367,9 +325,10 @@ class MainActivity : AppCompatActivity() {
         cardLast.addView(tvLastDetail)
         root.addView(cardLast, defaultCardParams())
 
+        // Tarjeta 3: Total Acumulado Hoy + Historial
         val cardTotal = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setPadding(dp(14), dp(12), dp(14), dp(12))
             background = createCardDrawable("#FFFFFF", "#E2E5EC", 14)
         }
 
@@ -382,26 +341,26 @@ class MainActivity : AppCompatActivity() {
 
         tvDailyTotal = TextView(this).apply {
             text = "S/ 0.00"
-            textSize = 26f
+            textSize = 24f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#137333"))
-            setPadding(0, dp(4), 0, dp(2))
+            setPadding(0, dp(2), 0, dp(2))
         }
 
         tvDailyCount = TextView(this).apply {
             text = "0 pagos registrados hoy"
-            textSize = 13f
+            textSize = 12f
             setTextColor(Color.parseColor("#5F6368"))
-            setPadding(0, 0, 0, dp(12))
+            setPadding(0, 0, 0, dp(8))
         }
 
         val btnHistory = Button(this).apply {
             text = "📊 VER DETALLE E HISTORIAL"
-            textSize = 13f
+            textSize = 12f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#5E17EB"))
             background = createRoundedDrawable("#F3E8FF", 10)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(10), dp(8), dp(10), dp(8))
             setOnClickListener {
                 showHistoryDialog()
             }
@@ -413,54 +372,110 @@ class MainActivity : AppCompatActivity() {
         cardTotal.addView(btnHistory, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         root.addView(cardTotal, defaultCardParams())
 
+        // Selector de Voz (Mujer / Hombre)
+        val voiceRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+
+        val btnVoiceFemale = Button(this)
+        val btnVoiceMale = Button(this)
+
+        fun refreshVoiceButtons() {
+            val isFemale = AudioAmountBuilder.getVoiceGender(this) == "f"
+            btnVoiceFemale.apply {
+                text = "👩 VOZ MUJER"
+                textSize = 12f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(if (isFemale) Color.WHITE else Color.parseColor("#5E17EB"))
+                background = if (isFemale) createRoundedDrawable("#5E17EB", 10) else createCardDrawable("#FFFFFF", "#5E17EB", 10)
+                setPadding(dp(8), dp(9), dp(8), dp(9))
+            }
+            btnVoiceMale.apply {
+                text = "👨 VOZ HOMBRE"
+                textSize = 12f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(if (!isFemale) Color.WHITE else Color.parseColor("#5E17EB"))
+                background = if (!isFemale) createRoundedDrawable("#5E17EB", 10) else createCardDrawable("#FFFFFF", "#5E17EB", 10)
+                setPadding(dp(8), dp(9), dp(8), dp(9))
+            }
+        }
+
+        btnVoiceFemale.setOnClickListener {
+            AudioAmountBuilder.setVoiceGender(this, "f")
+            refreshVoiceButtons()
+            playTestSequence()
+        }
+
+        btnVoiceMale.setOnClickListener {
+            AudioAmountBuilder.setVoiceGender(this, "m")
+            refreshVoiceButtons()
+            playTestSequence()
+        }
+
+        refreshVoiceButtons()
+
+        voiceRow.addView(btnVoiceFemale, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginEnd = dp(5)
+        })
+        voiceRow.addView(btnVoiceMale, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = dp(5)
+        })
+        root.addView(voiceRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(8)
+        })
+
+        // Botón Prueba de Audio
         val btnTestAudio = Button(this).apply {
             text = "▶ PROBAR AUDIO DE PRUEBA"
-            textSize = 14f
+            textSize = 13f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            background = createRoundedDrawable("#5E17EB", 12)
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = createRoundedDrawable("#5E17EB", 10)
+            setPadding(dp(12), dp(11), dp(12), dp(11))
             setOnClickListener {
                 playTestSequence()
             }
         }
         root.addView(btnTestAudio, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(10)
+            bottomMargin = dp(8)
         })
 
+        // Botón Evitar que Yape se duerma
         val btnWakeYape = Button(this).apply {
             text = "⚡ EVITAR QUE YAPE SE DUERMA"
-            textSize = 13f
+            textSize = 12f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#5E17EB"))
-            background = createCardDrawable("#FFFFFF", "#5E17EB", 12)
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = createCardDrawable("#FFFFFF", "#5E17EB", 10)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
             setOnClickListener {
                 openYapeBatterySettings()
             }
         }
         root.addView(btnWakeYape, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(10)
+            bottomMargin = dp(8)
         })
 
+        // Botón Ajustes de Batería / Permisos
         btnPermissions = Button(this).apply {
             text = "⚙ AJUSTES DE BATERÍA / PERMISOS"
-            textSize = 13f
+            textSize = 12f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.parseColor("#3C4043"))
-            background = createRoundedDrawable("#E4E6EB", 12)
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = createRoundedDrawable("#E4E6EB", 10)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
             setOnClickListener {
                 openPermissionSettings()
             }
         }
         root.addView(btnPermissions, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = dp(16)
+            bottomMargin = dp(10)
         })
 
         val tvFooter = TextView(this).apply {
-            text = "Creado por: rasec-alay • v1.3"
-            textSize = 12f
+            text = "Creado por: rasec-alay • v1.4"
+            textSize = 11f
             setTextColor(Color.parseColor("#80868B"))
             gravity = Gravity.CENTER
         }
@@ -585,9 +600,6 @@ class MainActivity : AppCompatActivity() {
             tvStatusBadge.setTextColor(Color.parseColor("#137333"))
             tvStatusBadge.background = createRoundedDrawable("#E6F4EA", 8)
             tvStatusDesc.text = "Escuchando pagos en segundo plano"
-            tvServiceBadge.text = "CONECTADO"
-            tvServiceBadge.setTextColor(Color.parseColor("#1967D2"))
-            tvServiceBadge.background = createRoundedDrawable("#E8F0FE", 8)
 
             val serviceIntent = Intent(this, YaplinListener::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -600,17 +612,14 @@ class MainActivity : AppCompatActivity() {
             tvStatusBadge.setTextColor(Color.parseColor("#C5221F"))
             tvStatusBadge.background = createRoundedDrawable("#FCE8E6", 8)
             tvStatusDesc.text = "Activa el acceso a notificaciones para empezar"
-            tvServiceBadge.text = "DESCONECTADO"
-            tvServiceBadge.setTextColor(Color.parseColor("#C5221F"))
-            tvServiceBadge.background = createRoundedDrawable("#FCE8E6", 8)
         }
 
         if (!isNotificationEnabled || !isBatteryIgnored) {
             btnPermissions.setTextColor(Color.WHITE)
-            btnPermissions.background = createRoundedDrawable("#D93025", 12)
+            btnPermissions.background = createRoundedDrawable("#D93025", 10)
         } else {
             btnPermissions.setTextColor(Color.parseColor("#3C4043"))
-            btnPermissions.background = createRoundedDrawable("#E4E6EB", 12)
+            btnPermissions.background = createRoundedDrawable("#E4E6EB", 10)
         }
     }
 
@@ -647,7 +656,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun playTestSequence() {
         stopTestAudio()
-        testPlaylist = AudioAmountBuilder.buildAudioPlaylist(this, 12.0, true)
+        testPlaylist = AudioAmountBuilder.buildAudioPlaylist(this, 12.50, true)
         if (testPlaylist.isEmpty()) return
 
         testIndex = 0
@@ -720,7 +729,7 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            bottomMargin = dp(12)
+            bottomMargin = dp(9)
         }
     }
 
